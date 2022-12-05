@@ -6,7 +6,7 @@ import time
 
 import gym
 import numpy as np
-import roboschool
+# import roboschool
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -15,7 +15,13 @@ from utils.noise import OrnsteinUhlenbeckActionNoise
 from utils.replay_memory import ReplayMemory, Transition
 from wrappers.normalized_actions import NormalizedActions
 
+import matplotlib
+matplotlib.use('Agg')
+
+import matplotlib.pyplot as plt
+
 # Create logger
+logging.basicConfig()
 logger = logging.getLogger('train')
 logger.setLevel(logging.INFO)
 
@@ -39,17 +45,17 @@ parser.add_argument("--save_dir", default="./saved_models/",
                     help="Dir. path to save and load a model (default: ./saved_models/)")
 parser.add_argument("--seed", default=0, type=int,
                     help="Random seed (default: 0)")
-parser.add_argument("--timesteps", default=1e6, type=int,
+parser.add_argument("--timesteps", default=5e5, type=int,
                     help="Num. of total timesteps of training (default: 1e6)")
 parser.add_argument("--batch_size", default=64, type=int,
                     help="Batch size (default: 64; OpenAI: 128)")
-parser.add_argument("--replay_size", default=1e6, type=int,
+parser.add_argument("--replay_size", default=5e4, type=int,
                     help="Size of the replay buffer (default: 1e6; OpenAI: 1e5)")
 parser.add_argument("--gamma", default=0.99,
                     help="Discount factor (default: 0.99)")
-parser.add_argument("--tau", default=0.001,
+parser.add_argument("--tau", default=0.005,
                     help="Update factor for the soft update of the target networks (default: 0.001)")
-parser.add_argument("--noise_stddev", default=0.2, type=int,
+parser.add_argument("--noise_stddev", default=0.1, type=int,
                     help="Standard deviation of the OU-Noise (default: 0.2)")
 parser.add_argument("--hidden_size", nargs=2, default=[400, 300], type=tuple,
                     help="Num. of units of the hidden layers (default: [400, 300]; OpenAI: [64, 64])")
@@ -127,6 +133,11 @@ if __name__ == "__main__":
     logger.info('Start at timestep {0} with t = {1}'.format(timestep, t))
     logger.info('Start training at {}'.format(time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.localtime())))
 
+    # graph logging
+    list_returns = []
+    list_average_returns = []
+    list_moving_average_returns = []
+
     while timestep <= args.timesteps:
         ou_noise.reset()
         epoch_return = 0
@@ -165,6 +176,13 @@ if __name__ == "__main__":
                 epoch_policy_loss += policy_loss
 
             if done:
+                list_returns.append(epoch_return)
+                average_return = np.mean(np.asarray(list_returns))
+                list_average_returns.append(average_return)
+                if len(list_average_returns) > 20:
+                    list_moving_average_returns.append(np.mean(list_returns[-20:]))
+                else:
+                    list_moving_average_returns.append(average_return)
                 break
 
         rewards.append(epoch_return)
@@ -219,6 +237,16 @@ if __name__ == "__main__":
                 logger.info('Saved model at {}'.format(time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.localtime())))
 
         epoch += 1
+
+    plt.plot(list_returns,'^',label="Return")
+    plt.plot(list_average_returns,'r',label="Average Return (all episodes)")
+    plt.plot(list_moving_average_returns,'b',label="Average Return (last 20 episodes)")
+    plt.ylabel('Return')
+    plt.xlabel('Episode#')
+    plt.title('Performance during training')
+    plt.ylim(-501, 300)
+    plt.legend()        
+    plt.savefig("performance.png")
 
     agent.save_checkpoint(timestep, memory)
     logger.info('Saved model at endtime {}'.format(time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.localtime())))

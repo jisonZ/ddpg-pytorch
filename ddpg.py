@@ -59,9 +59,9 @@ class DDPG(object):
 
         # Define the optimizers for both networks
         self.actor_optimizer = Adam(self.actor.parameters(),
-                                    lr=1e-4)  # optimizer for the actor network
+                                    lr=2e-4)  # optimizer for the actor network
         self.critic_optimizer = Adam(self.critic.parameters(),
-                                     lr=1e-3,
+                                     lr=3e-4,
                                      weight_decay=1e-2
                                      )  # optimizer for the critic network
 
